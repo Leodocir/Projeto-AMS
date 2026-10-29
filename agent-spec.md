@@ -154,8 +154,9 @@ Perguntas que guiam o preenchimento:
 -->
 **Quando se preenche:** no sábado (encontro 2, manhã).
 
-[o tipo mais simples que resolve, justificado pela dimensão
-do ambiente que o obriga]
+**Baseado em modelo.** A parcial observabilidade (seção 2) elimina o reativo simples: a falha de uma família de máquinas depende do que o agente já observou (duas falhas em sete dias na mesma família mudam a decisão da ordem seguinte), e isso só se guarda com estado interno. Não é baseado em utilidade: não há pesos a otimizar além da regra de LOTO. A busca não entra no parecer; entra só na ordem das verificações do roteiro de conformidade (seção 7).
+
+**O que mudou e por quê:** nada nesta seção desde a primeira versão. O tipo foi fixado aqui, antes da linha de base, e o laboratório 06 o confirmou: o agente de regras com estado interno é o que a reserva exige.
 
 ---
 
@@ -174,9 +175,13 @@ Perguntas que guiam o preenchimento:
 operacional completa — primária, secundárias, conjunto e limiar — é item da
 Atividade Orientada.
 
-[métrica primária e duas secundárias, cada uma com: como se
-calcula, sobre qual conjunto, qual o limiar de sucesso e o
-valor de hoje]
+**Primária: captura de falha.** Das ordens cujas leituras terminam em falha (`falhou_depois = 1` na reserva; `Machine failure = 1` no AI4I), conta-se quantas receberam risco médio ou alto (decisões `inspecionar_antes_de_operar` e `parar_para_manutencao`). Divide-se pelo total de ordens com falha no conjunto. Conjunto da linha de base: as 30 ordens do conjunto de reserva (D2-06), com 11 falhas. Conjunto-alvo: a partição de teste de 2.000 registros do AI4I, ainda sem rótulo de parecer. Limiar: **≥ 80%**. Hoje: **81,8%** (9 de 11) na reserva.
+
+**Secundária: alarme falso.** Ordens sem falha classificadas como risco médio ou alto, sobre o total de ordens sem falha. Limiar: **≤ 15%**. Hoje: **10,5%** (2 de 19) na reserva.
+
+**Secundária: acerto da decisão.** Casos em que a decisão é igual ao rótulo, sobre o total, a medida que o `medir.py` imprime. Limiar: **≥ 80%**. Hoje: **83,3%** (25 de 30) na reserva.
+
+**O que mudou e por quê:** a primária passou a ser medida sobre a reserva, para haver linha de base agora. A definição é a mesma; só o conjunto foi declarado. A partição AI4I de 2.000 registros continua como alvo para D5 e D7, e a comparação entre os dois só vale com o mesmo conjunto (ver `data/reserva/FONTE.md`).
 
 ---
 
@@ -193,9 +198,10 @@ Perguntas que guiam o preenchimento:
 -->
 **Quando se preenche:** na Atividade Orientada.
 
-[latência aceitável, custo aceitável, o que o agente jamais
-pode fazer sozinho, e a troca qualidade × custo que você
-aceita — com um exemplo numérico]
+- **Latência:** parecer em até 30 minutos do alerta. Depois disso o prejuízo do travamento passa a superar o custo de chamar o supervisor. Proposta, a confirmar com a planta.
+- **Custo:** até R$ 0,50 em chamadas de modelo por ordem. A linha de base não custa nada, porque roda sem modelo. Proposta, a confirmar.
+- **O que o agente jamais faz sozinho:** liberar a intervenção (tirar a exigência de LOTO ou de laudo) e autorizar trabalho em máquina energizada. Essa linha vira política na D12.
+- **Troca aceita:** perder até 5 pontos de captura para cortar o custo por ordem pela metade. Exemplo: 80% de captura a R$ 0,25 por ordem é aceito; 85% a R$ 0,50 é a versão mais cara, e a diferença de 5 pontos é o limite.
 
 ---
 
@@ -214,8 +220,21 @@ Perguntas que guiam o preenchimento:
 **Quando se preenche:** na Atividade Orientada — o pacote `D2-07` traz o
 modelo da tabela e dois exemplos preenchidos.
 
-[tabela: nome · entrada · saída · é reversível? · risco se
-errar — ações de leitura e de escrita]
+| Ação | Entrada | Saída | É reversível? | Risco se errar | Quem executa |
+|---|---|---|---|---|---|
+| Consultar a ordem de serviço (leitura) | Identificador da OS | Máquina, tipo do produto, descrição | Sim: só lê | Decisão sobre descrição incompleta; normas erradas são aplicadas | Agente sozinho |
+| Consultar a leitura de sensores (leitura) | Identificador da máquina | Temperatura, rotação, torque, desgaste | Sim: só lê | Leitura defasada subestima o risco; uma falha passa como segura | Agente sozinho |
+| Consultar o texto das normas (leitura) | Norma (NR-10, NR-12, NR-35) e tema | Trecho aplicável | Sim: só lê | Trecho errado citado como norma exigida | Agente sozinho |
+| Registrar o parecer (escrita) | OS, risco, normas, LOTO sim/não, justificativa | Registro gravado com data | Parcialmente: o registro pode ser corrigido, mas a versão anterior fica no histórico de auditoria | Parecer errado vira base de auditoria e de decisão de outras ordens | Agente sozinho |
+| Comunicar o parecer ao técnico (comunicação) | OS e parecer | Mensagem entregue ao técnico | Não: uma vez lida, a recomendação já foi ouvida | Técnico age sobre recomendação errada, ou perde o prazo de 30 min | Agente sozinho |
+| Pedir informação ao técnico (comunicação) | Pergunta objetiva sobre o local ou a tarefa | Resposta do técnico | Sim: a pergunta pode ser retirada | Pergunta mal feita atrasa o parecer e gasta a paciência do técnico | Agente sozinho |
+| Escalar ao supervisor de segurança (comunicação) | OS, motivo e o que já foi verificado | Chamado aberto para o supervisor | Sim: o chamado pode ser cancelado | Fadiga de alertas se a escala vier sem motivo; escala sem laudo vira gasto | Agente sozinho |
+| Marcar a OS como "LOTO exigido" (escrita) | Identificador da OS | Campo marcado no sistema da planta | Sim: a marca pode ser desfeita | Marca errada atrasa a intervenção e a produção | Agente sozinho; desfazer exige confirmação do técnico |
+| Liberar a intervenção (escrita) | OS, laudo e confirmação de bloqueio | Intervenção autorizada | Não: a intervenção começa e o efeito não se desfaz | Trabalho em máquina energizada: risco de acidente | Só humano, com dupla confirmação |
+
+**Quem executa cada ação:** as de leitura, o registro, as comunicações e a marca de LOTO são do agente, sem confirmação humana. A marca de LOTO só pode ser desfeita com confirmação do técnico. Liberar a intervenção é só humano.
+
+**O que o agente jamais executa sozinho:** liberar a intervenção (a única ação irreversível de risco alto), e dispensar o LOTO quando o parecer o exige. O catálogo não tem ação que trabalhe em máquina: o agente recomenda, não executa.
 
 ---
 
